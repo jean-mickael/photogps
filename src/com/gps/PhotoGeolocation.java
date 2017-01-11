@@ -12,6 +12,7 @@ import java.net.URL;
 
 import javax.swing.JFileChooser;
 import javax.swing.JPanel;
+import javax.swing.filechooser.FileFilter;
 import javax.swing.filechooser.FileNameExtensionFilter;
 
 import org.json.JSONArray;
@@ -34,15 +35,22 @@ public class PhotoGeolocation {
 			  System.out.println("No photo selected");
 			  return;
 		  }
-		  String city = service.getCity(file);
-		  System.out.println("The photo "+file.getAbsolutePath()+" was taken in "+city);
-		  service.showGoogleMap(file);
+		  try {
+			  String city = service.getCity(file);
+			  System.out.println("The photo "+file.getAbsolutePath()+" was taken in "+city);
+			  service.showGoogleMap(file);
+		  } catch (Exception e) {
+			  System.out.println(e);
+		  }
+		  
 	  }
 	  
 	  private File getFile() {
 		  JPanel panel = new JPanel();
 		  final JFileChooser fc = new JFileChooser();
-		  fc.addChoosableFileFilter(new FileNameExtensionFilter("Image Files", "jpg"));
+		  FileFilter imageFilter = new FileNameExtensionFilter("Image Files", "jpg");
+		  fc.addChoosableFileFilter(imageFilter);
+		  fc.setFileFilter(imageFilter);
 		  int file = fc.showOpenDialog(panel);
 		  if (file == JFileChooser.APPROVE_OPTION) {
 			  return fc.getSelectedFile();
@@ -50,15 +58,18 @@ public class PhotoGeolocation {
 		  return null;
 	  }
 	  
-	  private String getCity(File file) {
+	  private String getCity(File file) throws Exception {
 		  double[] gps = getGPSCoordinate(file);
 		  JSONObject object = getJSONObject(getAPIUrl(gps));
 		  return extractCity(object);
 	  }
 	  
-	  private double[] getGPSCoordinate(File file) {
+	  private double[] getGPSCoordinate(File file) throws Exception{
 		  javaxt.io.Image image = new javaxt.io.Image(file);
 		  double[] gps = image.getGPSCoordinate();
+		  if (gps == null) {
+			  throw new Exception("Cannot retrieve the GPS coordinate from the file "+file.getName());
+		  }
 		  return gps;
 	  }
 	  
@@ -85,9 +96,9 @@ public class PhotoGeolocation {
             if (city != null && country != null) {
             	return city+","+country;
             }
-		} catch (JSONException e) {
-			e.printStackTrace();
-		}
+		  } catch (JSONException e) {
+			  e.printStackTrace();
+		  }
 		  return null;
 	  }
 		  
@@ -112,24 +123,28 @@ public class PhotoGeolocation {
 	  }
 	  
 	  private void showGoogleMap(File file) {
-		  double[] gps = getGPSCoordinate(file);
-		  String url = getGoogleMapsUrl(gps).toString();
-		  if(Desktop.isDesktopSupported()){
-	            Desktop desktop = Desktop.getDesktop();
-	            try {
-	                desktop.browse(new URI(url));
-	            } catch (IOException | URISyntaxException e) {
-	                // TODO Auto-generated catch block
-	                e.printStackTrace();
-	            }
-	        }else{
-	            Runtime runtime = Runtime.getRuntime();
-	            try {
-	                runtime.exec("xdg-open " + url);
-	            } catch (IOException e) {
-	                e.printStackTrace();
-	            }
-	        }
+		try {
+			double[] gps = getGPSCoordinate(file);
+			String url = getGoogleMapsUrl(gps).toString();
+			if (Desktop.isDesktopSupported()) {
+				Desktop desktop = Desktop.getDesktop();
+				try {
+					desktop.browse(new URI(url));
+				} catch (IOException | URISyntaxException e) {
+					e.printStackTrace();
+				}
+			} else {
+				Runtime runtime = Runtime.getRuntime();
+				try {
+					runtime.exec("xdg-open " + url);
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			}
+		} catch (Exception e1) {
+			e1.printStackTrace();
+		}
+
 	  }
 	  
 	  private JSONObject getJSONObject(URL url) {
